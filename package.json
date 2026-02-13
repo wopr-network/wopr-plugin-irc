@@ -1,0 +1,53 @@
+{
+  "name": "@wopr-network/wopr-plugin-irc",
+  "version": "1.0.0",
+  "description": "IRC channel plugin for WOPR - Enables AI conversations in IRC channels",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "lint": "biome check --config-path=. src/",
+    "lint:fix": "biome check --config-path=. --fix src/",
+    "format": "biome format --config-path=. --write src/",
+    "check": "biome check --config-path=. src/ && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "wopr",
+    "plugin",
+    "irc",
+    "bot",
+    "ai"
+  ],
+  "author": "WOPR",
+  "license": "MIT",
+  "dependencies": {
+    "@wopr-network/plugin-types": "^0.1.0",
+    "irc-framework": "^4.13.1",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
+    "@types/node": "^22.19.11",
+    "@vitest/coverage-istanbul": "^4.0.18",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "wopr": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "wopr": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
