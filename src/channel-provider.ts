@@ -40,20 +40,25 @@ export function setMaxMessageLength(len: number): void {
   maxMsgLength = len;
 }
 
+export function clearRegistrations(): void {
+  registeredCommands.clear();
+  registeredParsers.clear();
+}
+
 export function getRegisteredCommand(name: string): ChannelCommand | undefined {
-  return registeredCommands.get(name);
+  return registeredCommands.get(name.toLowerCase());
 }
 
 export const ircChannelProvider: ChannelProvider = {
   id: "irc",
 
   registerCommand(cmd: ChannelCommand): void {
-    registeredCommands.set(cmd.name, cmd);
+    registeredCommands.set(cmd.name.toLowerCase(), cmd);
     logger.info({ msg: "Channel command registered", name: cmd.name });
   },
 
   unregisterCommand(name: string): void {
-    registeredCommands.delete(name);
+    registeredCommands.delete(name.toLowerCase());
   },
 
   getCommands(): ChannelCommand[] {
@@ -129,7 +134,7 @@ export async function handleRegisteredCommand(
     return true;
   } catch (error) {
     logger.error({ msg: "Channel command error", cmd: cmdName, error: String(error) });
-    replyFn(`Error executing ${commandPrefix}${cmdName}: ${error}`);
+    replyFn(`An error occurred while executing ${commandPrefix}${cmdName}`);
     return true;
   }
 }
@@ -146,11 +151,16 @@ export async function handleRegisteredParsers(
   for (const parser of registeredParsers.values()) {
     let matches = false;
 
-    if (typeof parser.pattern === "function") {
-      matches = parser.pattern(content);
-    } else {
-      parser.pattern.lastIndex = 0;
-      matches = parser.pattern.test(content);
+    try {
+      if (typeof parser.pattern === "function") {
+        matches = parser.pattern(content);
+      } else {
+        parser.pattern.lastIndex = 0;
+        matches = parser.pattern.test(content);
+      }
+    } catch (error) {
+      logger.error({ msg: "Parser pattern evaluation error", id: parser.id, error: String(error) });
+      continue;
     }
 
     if (matches) {

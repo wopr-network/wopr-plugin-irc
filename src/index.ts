@@ -7,6 +7,7 @@
 
 import IrcFramework from "irc-framework";
 import {
+  clearRegistrations,
   handleRegisteredCommand,
   handleRegisteredParsers,
   ircChannelProvider,
@@ -104,7 +105,7 @@ const configSchema: ConfigSchema = {
       type: "number",
       label: "Max Message Length",
       default: 512,
-      description: "Maximum message length in bytes (IRC standard: 512)",
+      description: "Maximum IRC line length in bytes (RFC 2812: 512). Protocol overhead is subtracted automatically.",
     },
     {
       name: "commandPrefix",
@@ -173,7 +174,13 @@ const plugin: WOPRPlugin = {
     // Set up flood protection
     floodProtector = new FloodProtector(currentConfig.floodDelay);
     setFloodProtector(floodProtector);
-    setMaxMessageLength(currentConfig.maxMessageLength);
+
+    // RFC 2812: 512 bytes includes the full protocol line
+    // (:nick!user@host PRIVMSG #channel :message\r\n)
+    // Reserve ~100 bytes for protocol overhead to stay safe
+    const IRC_PROTOCOL_OVERHEAD = 100;
+    const safeMaxLength = Math.max(1, currentConfig.maxMessageLength - IRC_PROTOCOL_OVERHEAD);
+    setMaxMessageLength(safeMaxLength);
 
     // Create IRC client
     client = new IrcFramework.Client();
@@ -212,6 +219,8 @@ const plugin: WOPRPlugin = {
     }
     setFloodProtector(null);
 
+    clearRegistrations();
+
     if (ctx?.unregisterChannelProvider) {
       ctx.unregisterChannelProvider("irc");
     }
@@ -236,6 +245,10 @@ function registerEventHandlers(ircClient: InstanceType<typeof IrcFramework.Clien
   ircClient.on("registered", (event: IrcRegisteredEvent) => {
     logger.info({ msg: "Connected to IRC", nick: event.nick });
     for (const channel of config.channels) {
+      if (!channel.startsWith("#") && !channel.startsWith("&")) {
+        logger.warn({ msg: "Invalid channel name (must start with # or &), skipping", channel });
+        continue;
+      }
       ircClient.join(channel);
       logger.info({ msg: "Joining channel", channel });
     }
@@ -313,7 +326,9 @@ async function handleIncomingMessage(event: IrcMessageEvent, config: IrcPluginCo
   // Reply helper that uses flood protection
   const replyFn = (msg: string) => {
     if (!client) return;
-    const chunks = splitMessage(msg, currentConfig?.maxMessageLength ?? 512);
+    const IRC_PROTOCOL_OVERHEAD = 100;
+    const safeLimit = Math.max(1, (currentConfig?.maxMessageLength ?? 512) - IRC_PROTOCOL_OVERHEAD);
+    const chunks = splitMessage(msg, safeLimit);
     for (const chunk of chunks) {
       if (chunk.trim()) {
         const sayFn = () => client?.say(channel, chunk);

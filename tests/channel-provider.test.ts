@@ -207,7 +207,7 @@ describe("handleRegisteredCommand", () => {
     const replyFn = vi.fn();
     const result = await handleRegisteredCommand("#test", "user", "!fail", "!", replyFn);
     expect(result).toBe(true);
-    expect(replyFn).toHaveBeenCalledWith(expect.stringContaining("Error executing !fail"));
+    expect(replyFn).toHaveBeenCalledWith("An error occurred while executing !fail");
   });
 });
 
