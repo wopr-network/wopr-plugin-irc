@@ -1,0 +1,1 @@
+# WOPR IRC Plugin
