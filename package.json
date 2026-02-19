@@ -34,7 +34,9 @@
     "@types/node": "^22.19.11",
     "@vitest/coverage-istanbul": "^4.0.18",
     "typescript": "^5.3.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "semantic-release": "^24.0.0",
+    "@wopr-network/semantic-release-config": "^1.0.0"
   },
   "peerDependencies": {
     "wopr": "^2.0.0"
