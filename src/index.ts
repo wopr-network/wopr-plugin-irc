@@ -25,6 +25,7 @@ import type {
   IrcNickEvent,
   IrcPluginConfig,
   IrcRegisteredEvent,
+  PluginManifest,
   WOPRPlugin,
   WOPRPluginContext,
 } from "./types.js";
@@ -49,6 +50,7 @@ const configSchema: ConfigSchema = {
       placeholder: "irc.libera.chat",
       required: true,
       description: "IRC server hostname",
+      setupFlow: "paste",
     },
     {
       name: "port",
@@ -57,6 +59,7 @@ const configSchema: ConfigSchema = {
       placeholder: "6697",
       default: 6697,
       description: "IRC server port (6697 for TLS, 6667 for plain)",
+      setupFlow: "none",
     },
     {
       name: "nick",
@@ -65,6 +68,7 @@ const configSchema: ConfigSchema = {
       placeholder: "wopr-bot",
       required: true,
       description: "IRC nickname for the bot",
+      setupFlow: "paste",
     },
     {
       name: "channels",
@@ -72,6 +76,7 @@ const configSchema: ConfigSchema = {
       label: "Channels",
       required: true,
       description: "IRC channels to join (e.g., #general)",
+      setupFlow: "paste",
       items: {
         name: "channel",
         type: "text",
@@ -85,6 +90,7 @@ const configSchema: ConfigSchema = {
       label: "Use TLS/SSL",
       default: true,
       description: "Connect using TLS/SSL encryption",
+      setupFlow: "none",
     },
     {
       name: "password",
@@ -92,6 +98,7 @@ const configSchema: ConfigSchema = {
       label: "Server Password",
       description: "IRC server password (optional)",
       secret: true,
+      setupFlow: "paste",
     },
     {
       name: "floodDelay",
@@ -99,6 +106,7 @@ const configSchema: ConfigSchema = {
       label: "Flood Delay (ms)",
       default: 500,
       description: "Minimum delay between outgoing messages",
+      setupFlow: "none",
     },
     {
       name: "maxMessageLength",
@@ -106,6 +114,7 @@ const configSchema: ConfigSchema = {
       label: "Max Message Length",
       default: 512,
       description: "Maximum IRC line length in bytes (RFC 2812: 512). Protocol overhead is subtracted automatically.",
+      setupFlow: "none",
     },
     {
       name: "commandPrefix",
@@ -113,6 +122,7 @@ const configSchema: ConfigSchema = {
       label: "Command Prefix",
       default: "!",
       description: "Prefix character for bot commands",
+      setupFlow: "none",
     },
     {
       name: "username",
@@ -120,6 +130,7 @@ const configSchema: ConfigSchema = {
       label: "Username",
       placeholder: "wopr",
       description: "IRC username (ident)",
+      setupFlow: "paste",
     },
     {
       name: "realname",
@@ -127,8 +138,32 @@ const configSchema: ConfigSchema = {
       label: "Real Name",
       placeholder: "WOPR Bot",
       description: "IRC real name (GECOS)",
+      setupFlow: "paste",
     },
   ],
+};
+
+const manifest: PluginManifest = {
+  name: "@wopr-network/wopr-plugin-irc",
+  version: "1.0.0",
+  description: "IRC bot with channel and private message support",
+  author: "WOPR",
+  license: "MIT",
+  capabilities: ["channel", "commands"],
+  category: "channel",
+  tags: ["irc", "chat", "channel", "bot"],
+  icon: ":satellite:",
+  configSchema,
+  requires: {
+    network: {
+      outbound: true,
+      hosts: ["irc.libera.chat"],
+    },
+  },
+  lifecycle: {
+    shutdownBehavior: "graceful",
+    shutdownTimeoutMs: 5000,
+  },
 };
 
 // ============================================================================
@@ -139,6 +174,7 @@ const plugin: WOPRPlugin = {
   name: "wopr-plugin-irc",
   version: "1.0.0",
   description: "IRC bot with channel and private message support",
+  manifest,
 
   async init(context: WOPRPluginContext) {
     ctx = context;
@@ -213,6 +249,8 @@ const plugin: WOPRPlugin = {
   },
 
   async shutdown() {
+    if (!ctx && !client) return;
+
     if (floodProtector) {
       floodProtector.clear();
       floodProtector = null;
@@ -221,8 +259,13 @@ const plugin: WOPRPlugin = {
 
     clearRegistrations();
 
-    if (ctx?.unregisterChannelProvider) {
-      ctx.unregisterChannelProvider("irc");
+    if (ctx) {
+      if (ctx.unregisterChannelProvider) {
+        ctx.unregisterChannelProvider("irc");
+      }
+      if (ctx.unregisterConfigSchema) {
+        ctx.unregisterConfigSchema("wopr-plugin-irc");
+      }
     }
 
     if (client) {
@@ -376,8 +419,8 @@ async function handleIncomingMessage(event: IrcMessageEvent, config: IrcPluginCo
       if (response && typeof response === "string") {
         replyFn(response);
       }
-    } catch (e) {
-      logger.error({ msg: "Failed to inject message", error: String(e) });
+    } catch (error: unknown) {
+      logger.error({ msg: "Failed to inject message", error: String(error) });
     }
   }
 }

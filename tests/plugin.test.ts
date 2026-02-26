@@ -323,6 +323,55 @@ describe("IRC Plugin", () => {
     expect(mockCtcpResponse).toHaveBeenCalledWith("someone", "PING", "1234567890");
   });
 
+  it("config schema fields have setupFlow annotation", async () => {
+    const ctx = createMockContext();
+    await plugin.init!(ctx as never);
+
+    const schema = ctx.registerConfigSchema.mock.calls[0][1];
+    for (const field of schema.fields) {
+      expect(field.setupFlow).toBeDefined();
+    }
+  });
+
+  it("has a complete manifest", () => {
+    expect(plugin.manifest).toBeDefined();
+    expect(plugin.manifest!.name).toBe("@wopr-network/wopr-plugin-irc");
+    expect(plugin.manifest!.capabilities).toContain("channel");
+    expect(plugin.manifest!.capabilities).toContain("commands");
+    expect(plugin.manifest!.category).toBe("channel");
+    expect(plugin.manifest!.tags).toEqual(expect.arrayContaining(["irc", "chat"]));
+    expect(plugin.manifest!.icon).toBeDefined();
+    expect(plugin.manifest!.lifecycle).toBeDefined();
+    expect(plugin.manifest!.lifecycle!.shutdownBehavior).toBe("graceful");
+    expect(plugin.manifest!.configSchema).toBeDefined();
+  });
+
+  it("unregisters config schema on shutdown", async () => {
+    const ctx = createMockContext({
+      server: "irc.test.com",
+      nick: "bot",
+      channels: ["#test"],
+    });
+
+    await plugin.init!(ctx as never);
+    await plugin.shutdown!();
+
+    expect(ctx.unregisterConfigSchema).toHaveBeenCalledWith("wopr-plugin-irc");
+  });
+
+  it("shutdown is idempotent (can be called twice)", async () => {
+    const ctx = createMockContext({
+      server: "irc.test.com",
+      nick: "bot",
+      channels: ["#test"],
+    });
+
+    await plugin.init!(ctx as never);
+    await plugin.shutdown!();
+    // Second call should not throw
+    await plugin.shutdown!();
+  });
+
   it("auto-rejoins after being kicked", async () => {
     vi.useFakeTimers();
 

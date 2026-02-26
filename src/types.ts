@@ -11,6 +11,7 @@ export type {
   PluginCommand,
   PluginInjectOptions,
   PluginLogger,
+  PluginManifest,
   SessionCreateEvent,
   SessionInjectEvent,
   SessionResponseEvent,

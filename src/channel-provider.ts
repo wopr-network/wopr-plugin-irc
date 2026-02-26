@@ -132,7 +132,7 @@ export async function handleRegisteredCommand(
   try {
     await cmd.handler(cmdCtx);
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error({ msg: "Channel command error", cmd: cmdName, error: String(error) });
     replyFn(`An error occurred while executing ${commandPrefix}${cmdName}`);
     return true;
@@ -158,7 +158,7 @@ export async function handleRegisteredParsers(
         parser.pattern.lastIndex = 0;
         matches = parser.pattern.test(content);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error({ msg: "Parser pattern evaluation error", id: parser.id, error: String(error) });
       continue;
     }
@@ -178,7 +178,7 @@ export async function handleRegisteredParsers(
       try {
         await parser.handler(msgCtx);
         return true;
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error({ msg: "Message parser error", id: parser.id, error: String(error) });
         return false;
       }
