@@ -7,7 +7,9 @@
 
 import IrcFramework from "irc-framework";
 import {
+  clearPendingNotifications,
   clearRegistrations,
+  handleNotificationReply,
   handleRegisteredCommand,
   handleRegisteredParsers,
   ircChannelProvider,
@@ -258,6 +260,7 @@ const plugin: WOPRPlugin = {
     setFloodProtector(null);
 
     clearRegistrations();
+    clearPendingNotifications();
 
     if (ctx) {
       if (ctx.unregisterChannelProvider) {
@@ -383,6 +386,11 @@ async function handleIncomingMessage(event: IrcMessageEvent, config: IrcPluginCo
       }
     }
   };
+
+  // Check for notification reply (one-shot ACCEPT/DENY) — private messages only
+  if (isPrivate && handleNotificationReply(sender, message)) {
+    return;
+  }
 
   // Check registered commands first
   const handledByCommand = await handleRegisteredCommand(channel, sender, message, config.commandPrefix, replyFn);
