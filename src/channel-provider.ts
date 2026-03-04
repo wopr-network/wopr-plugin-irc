@@ -12,7 +12,9 @@ import type {
   ChannelCommandContext,
   ChannelMessageContext,
   ChannelMessageParser,
-  ChannelProvider,
+  ChannelNotificationCallbacks,
+  ChannelNotificationPayload,
+  IrcChannelProvider,
 } from "./types.js";
 
 // irc-framework client type (untyped library)
@@ -27,6 +29,15 @@ let maxMsgLength = 512;
 
 const registeredCommands: Map<string, ChannelCommand> = new Map();
 const registeredParsers: Map<string, ChannelMessageParser> = new Map();
+
+interface PendingNotification {
+  callbacks?: ChannelNotificationCallbacks;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+const pendingNotifications: Map<string, PendingNotification> = new Map();
+
+const NOTIFICATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export function setChannelProviderClient(c: IrcClient | null): void {
   ircClient = c;
@@ -45,11 +56,18 @@ export function clearRegistrations(): void {
   registeredParsers.clear();
 }
 
+export function clearPendingNotifications(): void {
+  for (const pending of pendingNotifications.values()) {
+    clearTimeout(pending.timer);
+  }
+  pendingNotifications.clear();
+}
+
 export function getRegisteredCommand(name: string): ChannelCommand | undefined {
   return registeredCommands.get(name.toLowerCase());
 }
 
-export const ircChannelProvider: ChannelProvider = {
+export const ircChannelProvider: IrcChannelProvider = {
   id: "irc",
 
   registerCommand(cmd: ChannelCommand): void {
@@ -95,6 +113,33 @@ export const ircChannelProvider: ChannelProvider = {
 
   getBotUsername(): string {
     return ircClient?.user?.nick || "unknown";
+  },
+
+  async sendNotification(
+    channelId: string,
+    payload: ChannelNotificationPayload,
+    callbacks?: ChannelNotificationCallbacks,
+  ): Promise<void> {
+    if (payload.type !== "friend-request") return;
+    if (!ircClient) throw new Error("IRC client not initialized");
+
+    const fromLabel = payload.from || payload.pubkey || "unknown peer";
+    const message = `Friend request from ${fromLabel}. Reply ACCEPT or DENY.`;
+
+    ircClient.say(channelId, message);
+
+    // Clean up any existing pending notification for this channel
+    const existing = pendingNotifications.get(channelId);
+    if (existing) {
+      clearTimeout(existing.timer);
+    }
+
+    // Register one-shot pending notification
+    const timer = setTimeout(() => {
+      pendingNotifications.delete(channelId);
+    }, NOTIFICATION_TIMEOUT_MS);
+
+    pendingNotifications.set(channelId, { callbacks, timer });
   },
 };
 
@@ -183,6 +228,33 @@ export async function handleRegisteredParsers(
         return false;
       }
     }
+  }
+
+  return false;
+}
+
+/**
+ * Check if a private message is an ACCEPT/DENY reply to a pending notification.
+ * Returns true if it was handled (one-shot: removes the pending entry).
+ */
+export function handleNotificationReply(sender: string, content: string): boolean {
+  const pending = pendingNotifications.get(sender);
+  if (!pending) return false;
+
+  const trimmed = content.trim().toUpperCase();
+
+  if (trimmed === "ACCEPT") {
+    clearTimeout(pending.timer);
+    pendingNotifications.delete(sender);
+    pending.callbacks?.onAccept?.();
+    return true;
+  }
+
+  if (trimmed === "DENY") {
+    clearTimeout(pending.timer);
+    pendingNotifications.delete(sender);
+    pending.callbacks?.onDeny?.();
+    return true;
   }
 
   return false;

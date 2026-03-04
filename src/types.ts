@@ -76,3 +76,39 @@ export interface IrcCtcpRequestEvent {
   message: string;
   reply: (message: string) => void;
 }
+
+// ---------------------------------------------------------------------------
+// Notification types (pending upstream release in @wopr-network/plugin-types)
+// ---------------------------------------------------------------------------
+
+export interface ChannelNotificationPayload {
+  type: string;
+  from?: string;
+  pubkey?: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelNotificationCallbacks {
+  onAccept?: () => void | Promise<void>;
+  onDeny?: () => void | Promise<void>;
+}
+
+/**
+ * Extended ChannelProvider with notification support (pending upstream release).
+ */
+export interface IrcChannelProvider {
+  id: string;
+  registerCommand(cmd: import("@wopr-network/plugin-types").ChannelCommand): void;
+  unregisterCommand(name: string): void;
+  getCommands(): import("@wopr-network/plugin-types").ChannelCommand[];
+  addMessageParser(parser: import("@wopr-network/plugin-types").ChannelMessageParser): void;
+  removeMessageParser(id: string): void;
+  getMessageParsers(): import("@wopr-network/plugin-types").ChannelMessageParser[];
+  send(channel: string, content: string): Promise<void>;
+  getBotUsername(): string;
+  sendNotification(
+    channelId: string,
+    payload: ChannelNotificationPayload,
+    callbacks?: ChannelNotificationCallbacks,
+  ): Promise<void>;
+}
