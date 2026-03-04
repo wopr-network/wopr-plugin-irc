@@ -126,17 +126,13 @@ export const ircChannelProvider: IrcChannelProvider = {
     const fromLabel = payload.from || payload.pubkey || "unknown peer";
     const message = `Friend request from ${fromLabel}. Reply ACCEPT or DENY.`;
 
-    const sayFn = () => ircClient?.say(channelId, message);
-    if (floodProtector) {
-      floodProtector.enqueue(sayFn);
-    } else {
-      sayFn();
-    }
+    await ircChannelProvider.send(channelId, message);
 
     // Clean up any existing pending notification for this channel
     const key = channelId.toLowerCase();
     const existing = pendingNotifications.get(key);
     if (existing) {
+      Promise.resolve(existing.callbacks?.onDeny?.()).catch(() => {});
       clearTimeout(existing.timer);
     }
 
