@@ -126,20 +126,26 @@ export const ircChannelProvider: IrcChannelProvider = {
     const fromLabel = payload.from || payload.pubkey || "unknown peer";
     const message = `Friend request from ${fromLabel}. Reply ACCEPT or DENY.`;
 
-    ircClient.say(channelId, message);
+    const sayFn = () => ircClient?.say(channelId, message);
+    if (floodProtector) {
+      floodProtector.enqueue(sayFn);
+    } else {
+      sayFn();
+    }
 
     // Clean up any existing pending notification for this channel
-    const existing = pendingNotifications.get(channelId);
+    const key = channelId.toLowerCase();
+    const existing = pendingNotifications.get(key);
     if (existing) {
       clearTimeout(existing.timer);
     }
 
     // Register one-shot pending notification
     const timer = setTimeout(() => {
-      pendingNotifications.delete(channelId);
+      pendingNotifications.delete(key);
     }, NOTIFICATION_TIMEOUT_MS);
 
-    pendingNotifications.set(channelId, { callbacks, timer });
+    pendingNotifications.set(key, { callbacks, timer });
   },
 };
 
@@ -238,22 +244,35 @@ export async function handleRegisteredParsers(
  * Returns true if it was handled (one-shot: removes the pending entry).
  */
 export function handleNotificationReply(sender: string, content: string): boolean {
-  const pending = pendingNotifications.get(sender);
+  const key = sender.toLowerCase();
+  const pending = pendingNotifications.get(key);
   if (!pending) return false;
 
   const trimmed = content.trim().toUpperCase();
 
   if (trimmed === "ACCEPT") {
     clearTimeout(pending.timer);
-    pendingNotifications.delete(sender);
-    pending.callbacks?.onAccept?.();
+    pendingNotifications.delete(key);
+    (async () => {
+      try {
+        await pending.callbacks?.onAccept?.();
+      } catch (err) {
+        logger.error({ msg: "Notification callback failed", error: String(err) });
+      }
+    })();
     return true;
   }
 
   if (trimmed === "DENY") {
     clearTimeout(pending.timer);
-    pendingNotifications.delete(sender);
-    pending.callbacks?.onDeny?.();
+    pendingNotifications.delete(key);
+    (async () => {
+      try {
+        await pending.callbacks?.onDeny?.();
+      } catch (err) {
+        logger.error({ msg: "Notification callback failed", error: String(err) });
+      }
+    })();
     return true;
   }
 
